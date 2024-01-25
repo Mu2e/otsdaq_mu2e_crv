@@ -77,7 +77,10 @@ uint16_t ROCCosmicRayVetoInterface::readEmulatorRegister(uint16_t address)
 }
 
 //==================================================================================================
-int ROCCosmicRayVetoInterface::readTimestamp() { return this->readRegister(12); }
+int ROCCosmicRayVetoInterface::readInjectedPulseTimestamp()
+{
+	return this->readRegister(12);
+}
 
 //==================================================================================================
 void ROCCosmicRayVetoInterface::writeDelay(uint16_t delay)
