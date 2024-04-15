@@ -449,7 +449,7 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool gr) {
 	this->writeRegister(ROC::Data_Broadcast|ROC::Data_CRC, 0xA8);
 
     // Reset input buffers
-	ResetTxBuffers();
+    ResetTxBuffers();
 
 	// Reset DDR on Data FPGAs
 	for (int i = 0; i < 3; ++i) {
@@ -459,8 +459,11 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool gr) {
 	    this->writeRegister(ROC::Data[i]|ROC::Data_DDR_ReadLow, 0x0);
 	}
 
-    // Set TRIG 1
+    	// Set TRIG 1
 	this->writeRegister(ROC::TRIG, 0x1);
+
+    	// set the ROC address
+	this->writeRegister(ROC::ID, (uint16_t)linkID_);
 
 	// Enable GR package return
 	TLOG(TLVL_ROCConfig) << "Global Run Mode is " << (gr ? "enabled" : "disabled") << "." << __E__;
