@@ -13,7 +13,7 @@ enum Register : uint16_t {
     OffSpillGate       = 0x1006,
     RdPtrHi            = 0x1010,
     RdPtrLo            = 0x1011,
-    Addres             = 0x1013,
+    Addres             = 0x1014,
     Samples            = 0x100C,
     IntTrgEn           = 0x100E,
     BiasTrim           = 0x1030, // to 0x3f 
@@ -22,11 +22,13 @@ enum Register : uint16_t {
 
     // prefix for all 4 fpga
     AllFPGA            = 0x1300,
+    CSRBroadCast       = 0x1316,
     // broadcast to all FEBs on ROC
     AllFEB             = 0x3000,
     // uC functions
     Reset        = 0x9001,
     TRIG         = 0x900B,
+    CMBENA       = 0x9106
 }; // end ROC_Register enum
 
 uint16_t FPGA[] = {0x000, 0x400, 0x800, 0xC00}; 

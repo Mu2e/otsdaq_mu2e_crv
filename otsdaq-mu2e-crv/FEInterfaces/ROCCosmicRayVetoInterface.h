@@ -75,6 +75,8 @@ public:
 	void                                    FebSetBiasTrim          (__ARGS__);
 	void                                    FebSetThreshold         (__ARGS__);
 	void                                    FebSetPipeline          (__ARGS__);
+    void                                    FebCMBENA               (__ARGS__);
+    void                                    PWRRST                  (__ARGS__);
 	// clang-format on
 };
 

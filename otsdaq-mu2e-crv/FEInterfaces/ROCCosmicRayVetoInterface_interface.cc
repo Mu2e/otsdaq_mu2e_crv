@@ -8,6 +8,7 @@ using namespace ots;
 
 #define TLVL_ROCConfig TLVL_DEBUG + 5
 #define TLVL_FEBConfig TLVL_DEBUG + 6
+#define TLVL_Start TLVL_DEBUG + 7
 
 
 #undef __MF_SUBJECT__
@@ -146,6 +147,20 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 					std::vector<std::string>{},
 					1);  // requiredUserPermissions
 
+        registerFEMacroFunction("FEBs CMBENA",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+					&ROCCosmicRayVetoInterface::FebCMBENA),
+					std::vector<std::string>{"value (Default 1)"},
+					std::vector<std::string>{},
+					1);  // requiredUserPermissions
+
+        registerFEMacroFunction("PWRRST",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+					&ROCCosmicRayVetoInterface::PWRRST),
+					std::vector<std::string>{"port (Default 25 - all)"},
+					std::vector<std::string>{},
+					1);  // requiredUserPermissions
+
 }
 
 //==========================================================================================
@@ -275,6 +290,9 @@ void ROCCosmicRayVetoInterface::resume(void) {}
 
 //==============================================================================
 void ROCCosmicRayVetoInterface::start(std::string) { // runNumber) 
+    // take pedestrals
+    this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
+    TLOG(TLVL_Start) << "Taking pedestrals" << __E__;
 }
 
 //==============================================================================
@@ -327,7 +345,7 @@ void ROCCosmicRayVetoInterface::SoftReset(__ARGS__)
 }
 
 void ROCCosmicRayVetoInterface::FebConfigure() {
-	TLOG(TLVL_ROCConfig) << "FebConfigure start..." << __E__;
+	TLOG(TLVL_FEBConfig) << "FebConfigure start..." << __E__;
     this->readRegister(ROC::Version);
 
 	// first broadcast common settings
@@ -341,28 +359,30 @@ void ROCCosmicRayVetoInterface::FebConfigure() {
 	this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::RdPtrHi, 0x0); // not really needed
 	this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::RdPtrLo, 0x0); // not really needed
 
+
     try {   
         auto rocConfigs = getSelfNode().getNode("ROCTypeLinkTable") 
-                                       .getNode("LinkToSubsystemGroupedParametersTable").getChildren();
+                                       .getNode("LinkToSubsystemCRVGroupedParametersTable").getChildren();
         for(const auto& rocConfig : rocConfigs) {       
             // Set on-spill gate @ 80MHz
+            uint16_t TEMPFIX = 0xefff;
 			if(rocConfig.second.getNode("Name").getValueAsString() == "OnSpillGateLength") {
                 uint16_t onSpillGateLength = rocConfig.second.getNode("Value").getValue<uint16_t>();
-                this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::OnSpillGate, onSpillGateLength);
+                this->writeRegister((FEB::AllFEB|FEB::AllFPGA|FEB::OnSpillGate)&TEMPFIX, onSpillGateLength);
                 TLOG(TLVL_FEBConfig) << "Broadcast 'OnSpillGateLength' 0x" << std::hex << onSpillGateLength << " (80MHz) to all FEBs " << __E__;
                 continue;
 			}
 			// Set off-spill gate @ 80MHz
             if(rocConfig.second.getNode("Name").getValueAsString() == "OffSpillGateLength") {
                 uint16_t offSpillGateLength = rocConfig.second.getNode("Value").getValue<uint16_t>();
-				this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::OffSpillGate, offSpillGateLength);
+				this->writeRegister((FEB::AllFEB|FEB::AllFPGA|FEB::OffSpillGate)&TEMPFIX, offSpillGateLength);
                 TLOG(TLVL_FEBConfig) << "Broadcast 'OffSpillGateLength' 0x" << std::hex << offSpillGateLength << " (80MHz) to all FEBs " << __E__;
                 continue;
 			}
 			// Set pipeline delay
             if(rocConfig.second.getNode("Name").getValueAsString() == "HitPipelineDelay") {
                 uint16_t hitPipelineDelay = rocConfig.second.getNode("Value").getValue<uint16_t>();
-				this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::Pipeline, hitPipelineDelay);
+				this->writeRegister((FEB::AllFEB|FEB::AllFPGA|FEB::Pipeline)&TEMPFIX, hitPipelineDelay);
                 TLOG(TLVL_FEBConfig) << "Broadcast 'HitPipelineDelay' 0x" << std::hex << hitPipelineDelay << " to all FEBs " << __E__;
                 continue;
 			}
@@ -371,7 +391,7 @@ void ROCCosmicRayVetoInterface::FebConfigure() {
             TLOG(TLVL_WARNING) << "Missing 'ROCTypeLinkTable/LinkToSubsystemGroupedParametersTable', skipping broadcasted FEB config." << __E__;
     }
     
-	usleep(20000); // 15ms doesn't work
+	usleep(100000); // 20ms doesn't work
 	// loop through all active FEBs
     auto febs = getSelfNode().getNode("LinkToFEBInterfaceTable").getChildren();
     for(const auto& feb : febs) {
@@ -588,6 +608,16 @@ void ROCCosmicRayVetoInterface::FebSetPipeline(__ARGS__) {
 void ROCCosmicRayVetoInterface::SetLoopbackMode(__ARGS__) {
 	int16_t mode = __GET_ARG_IN__("loopback mode (Default: 0)", int16_t, 0);
 	this->writeRegister(ROC::LoopbackMode, mode);
+}
+
+void ROCCosmicRayVetoInterface::FebCMBENA(__ARGS__) {
+	int16_t value = __GET_ARG_IN__("value (Default 1)", int16_t, 1);
+	this->writeRegister(FEB::AllFEB|FEB::CMBENA, value);
+}
+
+void ROCCosmicRayVetoInterface::PWRRST(__ARGS__) {
+	int16_t port = __GET_ARG_IN__("port (Default 25 - all)", int16_t, 25);
+	this->writeRegister(ROC::PWRRST, port);
 }
 
 // FEB related functions

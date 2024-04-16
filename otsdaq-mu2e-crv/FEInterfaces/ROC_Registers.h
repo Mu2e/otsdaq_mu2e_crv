@@ -11,7 +11,7 @@ enum Register : uint16_t
     GTP_CRC            = 0x02,
     ActivePortsHigh    = 0x08,
     ActivePortsLow     = 0x09,
-    ID                 = 0x0A,
+    ID                 = 0x0a,
     PLLMuxHigh         = 0x17,
     PLLMuxHLow         = 0x18,
     PLLStat            = 0x19, // bit 0 is pwr dwn, bit 4 is lock
@@ -52,6 +52,7 @@ enum Register : uint16_t
     // uC functions
     LP           = 0x8000,
     Reset        = 0x8001,
+    PWRRST       = 0x800A,
     TRIG         = 0x800B,
 }; // end ROC_Register enum
 
