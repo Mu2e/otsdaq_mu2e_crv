@@ -77,6 +77,7 @@ public:
 	void                                    FebSetPipeline          (__ARGS__);
     void                                    FebCMBENA               (__ARGS__);
     void                                    PWRRST                  (__ARGS__);
+    void                                    GetHistograms           (__ARGS__);
 	// clang-format on
 };
 

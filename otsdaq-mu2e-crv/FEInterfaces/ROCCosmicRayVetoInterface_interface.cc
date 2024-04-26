@@ -160,6 +160,14 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 					std::vector<std::string>{"port (Default 25 - all)"},
 					std::vector<std::string>{},
 					1);  // requiredUserPermissions
+        registerFEMacroFunction("Histogram",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+					&ROCCosmicRayVetoInterface::GetHistograms),
+					std::vector<std::string>{"interval (Default 2s) [ms]",
+                                             "channel",
+                                             "filename (Default: histogram.csv)"},
+					std::vector<std::string>{"buffer"},
+					1);  // requiredUserPermissions
 
 }
 
@@ -620,6 +628,16 @@ void ROCCosmicRayVetoInterface::PWRRST(__ARGS__) {
 	this->writeRegister(ROC::PWRRST, port);
 }
 
+void ROCCosmicRayVetoInterface::GetHistograms(__ARGS__) {
+	int16_t interval = __GET_ARG_IN__("interval (Default 2s) [ms]", int16_t, 2000);
+    int16_t channel = __GET_ARG_IN__("channel", int16_t);
+    std::string filename = __GET_ARG_IN__("filename (Default: histogram.csv)", std::string, "histogram.csv");
+
+
+    std::stringstream o;
+	o << "DEBUG: interval: " << interval << ", channel: " << channel << ", filename: " << filename << std::endl;
+    __SET_ARG_OUT__("buffer", o.str());
+}
 // FEB related functions
 
 uint32_t ROCCosmicRayVetoInterface::GetActivePorts() {
