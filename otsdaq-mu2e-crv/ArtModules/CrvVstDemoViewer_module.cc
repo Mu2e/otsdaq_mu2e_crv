@@ -187,6 +187,44 @@ void CrvVstDemoViewer::beginJob() {
   // app->Run()
   // app_->Run(true);
   delete [] tmp_argv;
+
+    _hCanvas = nullptr;
+	_gCanvas = nullptr;
+	for (auto& x : graphs_    ) x.second = nullptr;
+	for (auto& x : histograms_) x.second = nullptr;
+
+	newCanvas_ = true;
+	//if (!dynamicMode_) 
+    bookCanvas_();
+
+    // create "static" histograms
+    histograms_["channels"] = new TH1D("channels","",64,-0.5,63+0.5);
+    histograms_["channels"]->SetTitle("channels");
+    histograms_["channels"]->GetXaxis()->SetTitle("Channel");
+    histograms_["channels"]->GetYaxis()->SetTitle("counts");
+    _hCanvas->cd(1);
+    histograms_["channels"]->Draw();
+
+    histograms_["timestamps"] = new TH1D("timestamps","",4095,-0.5,4095+0.5);
+    histograms_["timestamps"]->SetTitle("Hit Times");
+    histograms_["timestamps"]->GetXaxis()->SetTitle("Hit Time");
+    histograms_["timestamps"]->GetYaxis()->SetTitle("counts");
+    _hCanvas->cd(2);
+    histograms_["timestamps"]->Draw();
+
+    histograms_["nhits"] = new TH1D("nhits","",21,-0.5,20+0.5);
+    histograms_["nhits"]->SetTitle("Number of Hits");
+    histograms_["nhits"]->GetXaxis()->SetTitle("number of hits per EW");
+    histograms_["nhits"]->GetYaxis()->SetTitle("counts");
+    _hCanvas->cd(3);
+    histograms_["nhits"]->Draw();
+
+    histograms_["adc"] = new TH1D("adc","",4096,-2048.+0.5,2048.-0.5);
+    histograms_["adc"]->SetTitle("ADC values");
+    histograms_["adc"]->GetXaxis()->SetTitle("adc values");
+    histograms_["adc"]->GetYaxis()->SetTitle("counts");
+    _hCanvas->cd(4);
+    histograms_["adc"]->Draw();
 }
 
 //-----------------------------------------------------------------------------
@@ -417,44 +455,8 @@ void CrvVstDemoViewer::beginRun(art::Run const& e) {
 	if (e.run() == current_run_) return;
 	current_run_ = e.run();
 
-	_hCanvas = nullptr;
-	_gCanvas = nullptr;
-	for (auto& x : graphs_    ) x.second = nullptr;
-	for (auto& x : histograms_) x.second = nullptr;
-
-	newCanvas_ = true;
-	//if (!dynamicMode_) 
-    bookCanvas_();
     _hCanvas->SetTitle(Form("Run %d", e.run()));
 
-    // create "static" histograms
-    histograms_["channels"] = new TH1D("channels","",64,-0.5,63+0.5);
-    histograms_["channels"]->SetTitle("channels");
-    histograms_["channels"]->GetXaxis()->SetTitle("Channel");
-    histograms_["channels"]->GetYaxis()->SetTitle("counts");
-    _hCanvas->cd(1);
-    histograms_["channels"]->Draw();
-
-    histograms_["timestamps"] = new TH1D("timestamps","",4095,-0.5,4095+0.5);
-    histograms_["timestamps"]->SetTitle("Hit Times");
-    histograms_["timestamps"]->GetXaxis()->SetTitle("Hit Time");
-    histograms_["timestamps"]->GetYaxis()->SetTitle("counts");
-    _hCanvas->cd(2);
-    histograms_["timestamps"]->Draw();
-
-    histograms_["nhits"] = new TH1D("nhits","",21,-0.5,20+0.5);
-    histograms_["nhits"]->SetTitle("Number of Hits");
-    histograms_["nhits"]->GetXaxis()->SetTitle("number of hits per EW");
-    histograms_["nhits"]->GetYaxis()->SetTitle("counts");
-    _hCanvas->cd(3);
-    histograms_["nhits"]->Draw();
-
-    histograms_["adc"] = new TH1D("adc","",4096,-2048.+0.5,2048.-0.5);
-    histograms_["adc"]->SetTitle("ADC values");
-    histograms_["adc"]->GetXaxis()->SetTitle("adc values");
-    histograms_["adc"]->GetYaxis()->SetTitle("counts");
-    _hCanvas->cd(4);
-    histograms_["adc"]->Draw();
 
     /*
     if (graphs_.count(fid) == 0 || graphs_[fid] == nullptr ||
