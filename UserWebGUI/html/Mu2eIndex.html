@@ -20,14 +20,16 @@
             <div id="mu2e_status" class="mu2e_container">
                 <div class="mu2e_title"                                     style="grid-column: 1/5; grid-row: 1">Status</div>
                 <div name="mu2e_GatewaySupervisor_state" class="mu2e_data"  style="grid-column: 1; grid-row: 2;" id="state">State</div>
-                <div name="mu2e_state_time"  class="mu2e_data"              style="grid-column: 2; grid-row: 2;">Time in state: XX:XX:XX</div>
-                <div name="mu2e_last_config" class="mu2e_data"              style="grid-column: 3; grid-row: 2;">Config: </div>
-                <div class="mu2e_data" name="mu2e_alarms"                   style="grid-column: 4; grid-row: 2;"></div>
-                <div name="mu2e_transition"                                 style="grid-column: 1; grid-row: 3;"><button disabled="true">Transition</button></div>
-                <div class="mu2e_data"                                      style="grid-column: 2; grid-row: 3;">Start Time</div>
-                <div class="mu2e_data"                                      style="grid-column: 3; grid-row: 3;">Stop Time</div>
-                <div class="mu2e_data"                                      style="grid-column: 4; grid-row: 3;">Configuration</div>
-                <div class="mu2e_data" id="mu2e_last_message"               style="grid-column: 1/5; grid-row: 4;">Last Message</div>
+                <div name="mu2e_state_time"  class="mu2e_list"              style="grid-column: 2; grid-row: 2;">Time in state: XX:XX:XX</div>
+                <div name="mu2e_last_config" class="mu2e_list"              style="grid-column: 3; grid-row: 2;">Config: </div>
+                <div class="mu2e_list" name="mu2e_alarms"                   style="grid-column: 4; grid-row: 2;"></div>
+                <div name="mu2e_transition"                                 style="grid-column: 1; grid-row: 4;"><button disabled="true">Transition</button></div>
+                <div class="mu2e_data" name="mu2e_run_number"               style="grid-column: 1; grid-row: 3;">Run: </div>
+                <div class="mu2e_list" name="mu2e_run_start"                style="grid-column: 2; grid-row: 3;">Run start </div>
+                <div class="mu2e_list" name="mu2e_run_config"               style="grid-column: 4; grid-row: 3/5;">Run Config</div>
+                <div class="mu2e_list" name="mu2e_run_type"                 style="grid-column: 3; grid-row: 3;">Run Type</div>
+                <div class="mu2e_list" name="mu2e_run_transition"           style="grid-column: 2/4; grid-row: 4;">Last Run Transition</div>
+                <div class="mu2e_data" id="mu2e_last_message"               style="grid-column: 1/5; grid-row: 5;">Last Message</div>
             </div>
 
             <div id="mu2e_apps" class="mu2e_container">

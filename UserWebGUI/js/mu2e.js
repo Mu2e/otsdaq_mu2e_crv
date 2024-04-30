@@ -510,6 +510,12 @@ function mu2e_init(name) {
                 loadFEB();
                 active = "FEB-"+_rocName
                 break;
+        case "RunLog":
+                let n = new URLSearchParams(window.location.search).get('n')
+                if(n == undefined) n = 20;
+                loadRunLog(n);
+                active = "RunLog"
+                break;
         default:
     }
     fetchData();
@@ -519,6 +525,7 @@ function mu2e_init(name) {
     updateHardware();
     updateAlarms();
     updateMessages();
+    updateRunInfo();
     updateNav(active); // sets the active navigation entry
 
 
@@ -967,6 +974,7 @@ async function handleAppStatus() {
                 if(updated) {
                     if(oldButton) div.replaceChild(button, oldButton);
                     else div.appendChild(button)
+                    updateRunInfo();
                 }
 
             });
@@ -1021,10 +1029,15 @@ function addNav() {
     message.href="Mu2eMessages.html"
     message.innerHTML = "Messages"
     message.id = "Messages"
+    let runlog = document.createElement("a")
+    runlog.href="Mu2eRunLog.html"
+    runlog.innerHTML = "Run Log"
+    runlog.id = "RunLog"
     if(nav) {
         nav.appendChild(overview)
         nav.appendChild(alarms)
         nav.appendChild(message)
+        nav.appendChild(runlog)
 
         nav.appendChild(document.createElement("br"))
     }
@@ -1221,6 +1234,121 @@ async function handleMessages() {
     }
 }
 
+async function updateRunInfo() {
+    console.log("updateRunInfo")
+    // check if we should do it
+    let divs = document.querySelectorAll('div[name="mu2e_run_number"]')
+    if(divs) { // only get data if we need it
+        let res = await getRunInfo(); // no argument: get current run number
+        if((res != undefined) && ("error" in res["plugin"])) { // handle case where no run is defined
+            divs.forEach(div => {
+                div.innerHTML = "Run: N/A";//res["plugin"]["error"]
+            });
+        } else if(res != undefined) {
+            const plugin = res["plugin"];
+            divs.forEach(div => { // mu2e_run_number
+                let a = document.createElement("a")
+                a.href = "Mu2eRunLog.html"
+                a.innerHTML = plugin["run_number"]
+                div.innerHTML = ""
+                div.appendChild(a)
+                div.innerHTML = "Run: " + div.innerHTML;
+
+                //let time = new Date(plugin["time"])
+                //addTime(div, time)
+            });
+            document.querySelectorAll('div[name="mu2e_run_start"]').forEach(div => {
+                let time = new Date(plugin["time"])
+                //addTime(div, time)
+                div.innerHTML = "Run start: "+time.toLocaleTimeString(['en-GB'], {hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            });
+            document.querySelectorAll('div[name="mu2e_run_config"]').forEach(div => {
+                div.innerHTML = "Run config: "+plugin["configuration"]+" ("+plugin["configuration_version"]+")";
+                //div.innerHTML += 
+            });
+            //document.querySelectorAll('div[name="mu2e_run_trigger"]').forEach(div => {
+            //    div.innerHTML = plugin["configuration"]+"("+plugin["configuration_version"]+")";
+            //});
+            document.querySelectorAll('div[name="mu2e_run_type"]').forEach(div => {
+                div.innerHTML = "Run type: "+plugin["run_type"];//+"("+plugin["host_name"]+" - "+plugin["artdaq_partition"]+")"
+                //div.innerHTML += ": "+plugin["artdaq_partition"]
+            });
+            document.querySelectorAll('div[name="mu2e_run_host"]').forEach(div => {
+                div.innerHTML = "Run host: "+plugin["host_name"]+" ("+plugin["artdaq_partition"]+")"
+            });
+            document.querySelectorAll('div[name="mu2e_run_transition"]').forEach(div => {
+                const transitions = plugin["transitions"];
+                console.log(transitions)
+                const t_idx = transitions.length-1;
+                if(t_idx>=0) {
+                    const time = new Date(transitions[t_idx]["time"]);
+                    const msg  = transitions[t_idx]["type"];
+                    div.innerHTML = "Last run transition: "
+                    div.innerHTML += time.toLocaleTimeString(['en-GB'], {hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    div.innerHTML += " "+msg
+                }
+            });
+            document.querySelectorAll('div[name="mu2e_run_transitions"]').forEach(div => {
+                const transitions = plugin["transitions"];
+                for(let idx = transitions.length-1; idx >= 0; idx--) {
+                //transitions.forEach(transition => {
+                    const transition = transitions[idx]
+                    let line = document.createElement("div")
+                    let time = new Date(transition["time"]);
+                    line.innerHTML = time.toLocaleTimeString(['en-GB'], {hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    line.innerHTML += " "+transition["type"]
+                    div.appendChild(line)
+                //});
+                }
+            });
+        }
+    }
+}
+
+async function loadRunLog(n=10) {
+    let div = document.querySelector('div[id="mu2e_runlog"]')
+    if(div) {
+        let rowid = 3;
+        let res = await getRunInfo(-n);
+        if((res != undefined) && ("runs" in res["plugin"])) {
+            res["plugin"]["runs"].forEach(run => {
+                let run_number = document.createElement("div")
+                run_number.style.cssText = "grid-column: 1; grid-row: "+rowid.toString()+";"
+                run_number.classList.add("mu2e_list")
+                run_number.innerHTML = run["run_number"]
+                div.appendChild(run_number)
+
+                let run_time = document.createElement("div")
+                run_time.style.cssText = "grid-column: 2; grid-row: "+rowid.toString()+";"
+                run_time.classList.add("mu2e_list")
+                let time = new Date(run["time"])
+                run_time.innerHTML = time.toLocaleTimeString(['en-US'], {year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                div.appendChild(run_time)
+
+                let run_trans = document.createElement("div")
+                run_trans.style.cssText = "grid-column: 3; grid-row: "+rowid.toString()+";"
+                run_trans.classList.add("mu2e_list")
+                let trans_time = new Date(run["last_transition_time"])
+                run_trans.innerHTML = trans_time.toLocaleTimeString(['en-GB'], {hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                run_trans.innerHTML += " "+run["last_transition"];
+                div.appendChild(run_trans)
+
+                let run_type = document.createElement("div")
+                run_type.style.cssText = "grid-column: 4; grid-row: "+rowid.toString()+";"
+                run_type.classList.add("mu2e_list")
+                run_type.innerHTML = run["run_type"]+" - "+run["configuration"]+" ("+run["configuration_version"]+")";
+                div.appendChild(run_type)
+
+                let run_host = document.createElement("div")
+                run_host.style.cssText = "grid-column: 5; grid-row: "+rowid.toString()+";"
+                run_host.classList.add("mu2e_list")
+                run_host.innerHTML = run["host_name"]+" ("+run["artdaq_partition"]+")";
+                div.appendChild(run_host)
+                rowid++;
+            });
+        }
+    }
+}
 
 async function handleAlarms() {
     let res = await getAlarmChecks();
