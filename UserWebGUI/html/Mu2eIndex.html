@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mu2e</title>
+    
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+    <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
+    <!--<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">-->
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+</head>
+<body class="mu2e" onload="mu2e_init('Index')">
+    <div id="mu2e_header">mu2e</div>
+    <div id="mu2e_nav">
+    </div>
+    <div id="mu2e_main">
+        <!--<div class="mu2e_container">-->
+            <div id="mu2e_status" class="mu2e_container">
+                <div class="mu2e_title"                                     style="grid-column: 1/5; grid-row: 1">Status</div>
+                <div name="mu2e_GatewaySupervisor_state" class="mu2e_data"  style="grid-column: 1; grid-row: 2;" id="state">State</div>
+                <div name="mu2e_state_time"  class="mu2e_data"              style="grid-column: 2; grid-row: 2;">Time in state: XX:XX:XX</div>
+                <div name="mu2e_last_config" class="mu2e_data"              style="grid-column: 3; grid-row: 2;">Config: </div>
+                <div class="mu2e_data" name="mu2e_alarms"                   style="grid-column: 4; grid-row: 2;"></div>
+                <div name="mu2e_transition"                                 style="grid-column: 1; grid-row: 3;"><button disabled="true">Transition</button></div>
+                <div class="mu2e_data"                                      style="grid-column: 2; grid-row: 3;">Start Time</div>
+                <div class="mu2e_data"                                      style="grid-column: 3; grid-row: 3;">Stop Time</div>
+                <div class="mu2e_data"                                      style="grid-column: 4; grid-row: 3;">Configuration</div>
+                <div class="mu2e_data" id="mu2e_last_message"               style="grid-column: 1/5; grid-row: 4;">Last Message</div>
+            </div>
+
+            <div id="mu2e_apps" class="mu2e_container">
+                <div class="mu2e_title"                       style="grid-column: 1/6; grid-row: 1">XDAQ</div>
+            </div>
+            <div id="mu2e_hardware" class="mu2e_container">
+                <div class="mu2e_title">Hardware</div>
+                <div class="">Other stuff</div>
+            </div>
+            <div class="mu2e_container">
+                <div class="mu2e_title">Artdaq</div>
+                <div class="">Other stuff</div>
+            </div>
+            <div class="mu2e_container">
+                <div class="mu2e_title" id="mu2e_miscellanea">Miscellanea</div>
+                <div class="">Graphite running?</div>
+                <div class="">EPICS running?</div>
+                <div class="">Slow controls enabled?</div>
+            </div>
+        <!--</div>-->
+
+    </div>
+
+</body>
+</html>

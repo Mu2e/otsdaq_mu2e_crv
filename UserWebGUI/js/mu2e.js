@@ -4,12 +4,16 @@ const LID_GATEWAY =200
 const LID_CONSOLE=260
 const LID_CONFIG=281
 const LID_SLOWCONTROLS=282
-const LID_MACROMAKER=000
+const LID_MACROMAKER=800
 
 // Need to make this page specific
 getAppStatusEnabled =true;
 getCurrentStateEnabled = true;
 getAliasListEnabled = true;
+getAlarmChecksEnabled = true;
+getSystemMessagesEnabled = true;
+
+DCS_PREFIX = "Mu2e:TDAQ_crv"
 
 
 
@@ -51,6 +55,7 @@ function get(RequestType, data="", lid=200, type1="Request") {
         })
         .catch(error => {
             console.error('Error fetching status:', error);
+            return undefined;
         });
 }
 
@@ -158,6 +163,20 @@ function formatTime(seconds, noHours=false) { // from gemini
     else return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
 }
 
+function addTime(div, time, dtime=0) {
+    let span = div.querySelector("span")
+    if(span == undefined) {
+        span = document.createElement("span")
+        span.classList.add("mu2e_right_float");
+        span.classList.add("mu2e_dcs_timestamp");
+        div.appendChild(span)
+    }
+    if(dtime > 120) {
+        setStatusColor(span, "mu2e_bad_text")
+    }
+    span.innerHTML = time.toLocaleTimeString(['en-GB'], {hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    //span.innerHTML = formatTime(dtime)
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// OTS API - OTS communciation functions //////////////////////////
@@ -188,9 +207,26 @@ async function getContextMemberNames() {
     } catch (error) { console.error("Error:", error); }
 }
 
-async function getSystemMessages() {
-    try { const xml = await get('getSystemMessages', lid=LID_GATEWAY);
-        return xmlToJson(xml).DATA;
+async function getSystemMessages(history = false) {
+    try { 
+        data = history ?  "history=true" : "";
+        const xml = await get('getSystemMessages', 
+        data=data, lid=LID_GATEWAY);
+        let json = xmlToJson(xml).DATA
+        let parts = decodeURIComponent(json["systemMessages"]).split("|");
+        out = []
+        if(parts.length>1) {
+            for(let i = 0; i < parts.length/2; i++) {
+                out.push({"time":parts[i*2],
+                        "message":parts[i*2+1]
+                        })
+            }
+            decodeURI(json["systemMessages"]).split("|").forEach
+            json["systemMessages"] = out
+        } else {
+            json["systemMessages"] = []
+        }
+        return json;
     } catch (error) { console.error("Error:", error); }
 }
 
@@ -201,10 +237,21 @@ async function getStateMachine() {
     } catch (error) { console.error("Error:", error); }
 }
 
+async function getRunInfo(run=0) {
+    try { const xml = await get("getRunInfo&RunNumber="+run.toString(), 
+          lid=LID_GATEWAY);
+          let out = xmlToJson(xml).DATA;
+          console.log(out["plugin"])
+          if(out["plugin"]) {
+            out["plugin"] = JSON.parse(out["plugin"])
+          }
+        return out
+    } catch (error) { console.error("Error:", error); }
+}
+
 // transition the state machine
-async function transition(state, config="crv_vst_config"){ //}, name="OtherRuns0") {
-    console.log("transition", state)
-    try { const xml = await get(state, //+"?fsmName="+name,
+async function transition(state, config="crv_vst_config", name="OtherRuns0") {
+    try { const xml = await get(state+"&fsmName="+name,
         data="ConfigurationAlias="+config, 
         lid=LID_GATEWAY, type1="transition");
         let json = xmlToJson(xml).DATA;
@@ -282,10 +329,8 @@ async function pollPV(uid) {
 
 // same as poll but takes a pvlist instead of uid
 async function getPvData(pvlist=[]) {
-    console.log("test")
     try { const xml = await get("getPvData", 
-    data="pvList="+pvlist.join(",")+",", lid=LID_SLOWCONTROLS);
-    console.log(xml);
+        data="pvList="+pvlist.join(",")+",", lid=LID_SLOWCONTROLS);
         return JSON.parse(xmlToJson(xml).DATA.JSON);
     } catch (error) { console.error("Error:", error); }
 }
@@ -306,8 +351,8 @@ async function getAlarmChecks() {
     try { 
         const xml = await get("getAlarmsCheck", 
         data="", lid=LID_SLOWCONTROLS);
-        console.log(xml);
-        return JSON.parse(xmlToJson(xml).DATA.JSON);
+        if(xml) return JSON.parse(xmlToJson(xml).DATA.JSON);
+        else return undefined;
     } catch (error) { console.error("Error:", error); }
 }
 
@@ -348,13 +393,11 @@ async function getHardwareTree(context=null) {
                     febs.forEach(feb => {
                         const febName =   feb.getAttribute("value")
                         const febStatus = feb.querySelector("[value='Status']>value").getAttribute("value")
-                        console.log(feb)
                         const febPort  =  feb.querySelector("[value='Port']>value").getAttribute("value")
                         hardware[dtcName]["rocs"][rocName]["febs"][febName] = {"status":febStatus,
                                                                                "port":febPort}
                     });
                 });
-
             });
             return hardware;
         } else {
@@ -371,19 +414,180 @@ async function getHardwareTree(context=null) {
     } catch (error) { console.error("Error:", error); }
 }
 
+async function dtcRead(reg, dtc="daq08DTC") {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=DTC%20Read&saveOutputs=0", 
+        data="inputArgs=address,"+reg+"&outputArgs=readData", lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function dtcWrite(reg, val, dtc="daq08DTC") {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=DTC%20Write&saveOutputs=0", 
+        data="inputArgs=address,"+reg+";writeData,"+val+"&outputArgs=Status", 
+        lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function rocRead(reg, dtc="daq08DTC", link=0) {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=ROC%20Read&saveOutputs=0", 
+        data="inputArgs=rocLinkIndex,"+link.toString()+";address,"+reg+"&outputArgs=readData", lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function rocWrite(reg, val, dtc="daq08DTC", link=0) {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=ROC%20Write&saveOutputs=0", 
+        data="inputArgs=rocLinkIndex,"+parseInt(link).toString()+";address,"+reg+";writeData,"+val+"&outputArgs=", 
+        lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function dtcReset(hard=false, dtc="daq08DTC") {
+    try { 
+        const macroName = hard ? "DTC%20Hard%20Reset" : "DTC%20Soft%20Reset"
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName="+macroName+"&saveOutputs=0", 
+        data="inputArgs=&outputArgs=", 
+        lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function rocReset(dtc="daq08DTC", roc="Default") {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=ROC%20FEMacro%20-%20Reset%20uC&saveOutputs=0", 
+        data="inputArgs=Target%20ROC%20(Default%20%3D%20-1%20%3A%3D%20all%20ROCs),"+roc+"&outputArgs=Target%20ROC", 
+        lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function rocPwrPort(dtc="daq08DTC", roc="Default", port="Default") {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=ROC%20FEMacro%20-%20PWRRST&saveOutputs=0", 
+        data="inputArgs=Target%20ROC%20(Default%20%3D%20-1%20%3A%3D%20all%20ROCs),"+roc+";port%20(Default%2025%20-%20all),"+port+"&outputArgs=Target%20ROC",
+        lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function febCMBENA(val="1", dtc="daq08DTC", roc="Default") {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=ROC%20FEMacro%20-%20FEBs%20CMBENA&saveOutputs=0", 
+        data="inputArgs=Target%20ROC%20(Default%20%3D%20-1%20%3A%3D%20all%20ROCs),"+roc+";value%20(Default%201),"+val+"&outputArgs=Target%20ROC",
+        lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
+
+async function febSetBias(val, fpga, no,  dtc="daq08DTC", roc="Default", port="Default") {
+    try { 
+        const xml = await get("runFEMacro&feClassSelected=DTCFrontEndInterface&feUIDSelected="+dtc+"&macroType=fe&macroName=ROC%20FEMacro%20-%20FEB%20Set%20Bias&saveOutputs=0", 
+        data="inputArgs=Target%20ROC%20(Default%20%3D%20-1%20%3A%3D%20all%20ROCs),"+roc+";port%20(Default%3A%20-1%2C%20current%20active),"+port+";fpga%20%5B0%2C1%2C2%2C3%5D,"+fpga+";number%20%5B0%2C1%5D,"+no+";bias,"+val+"&outputArgs=Target%20ROC",
+        lid=LID_MACROMAKER);
+        return xmlToJson(xml).DATA;
+    } catch (error) { console.error("Error:", error); }
+}
 
 function mu2e_init(name) {
     document.title = "Mu2e :: "+name
+    let active = name
+    switch(name) {
+        case "DTC":
+            loadDTC();
+            active = "DTC-"+_dtcName
+            break;
+        case "ROC":
+            loadROC();
+            active = "ROC-"+_rocName
+            break;
+        case "FEB":
+                loadFEB();
+                active = "FEB-"+_rocName
+                break;
+        default:
+    }
     fetchData();
     updateAliasList(); // don't update regularly
+    addNav(); // adds main navigation entries like Overview
     updateAppStatus();
+    updateHardware();
+    updateAlarms();
+    updateMessages();
+    updateNav(active); // sets the active navigation entry
+
+
+    loadDcsChannels(); // scans the document for <div name="mu2e_dcs" data="CHANNEL-NAME">
     setInterval(fetchData, 1000);
     // start 
 
 }
 
+mu2e_dcs_channels = []
+function loadDcsChannels() {
+    let dcs = document.querySelectorAll("div[name=\"mu2e_dcs\"]")
+    for(let i = 0; i < dcs.length; i++) {
+        let channel = dcs[i].getAttribute("data");
+        if(channel) {
+            mu2e_dcs_channels.push(channel)
+        }
+    }
+}
+
+var _dtcName = undefined;
+function loadDTC() {
+    const dtcName = new URLSearchParams(window.location.search).get('dtc')
+    if(dtcName) {
+        document.querySelector("div[id=\"mu2e_dtc\"]>div").textContent = "DTC - "+dtcName
+    }
+    document.querySelectorAll("div[name='mu2e_dcs']").forEach(div => {
+        div.setAttribute("data", DCS_PREFIX+":"+dtcName+":"+div.getAttribute("data"))
+    });
+    _dtcName = dtcName;
+}
+
+var _rocName = undefined;
+function loadROC() {
+    const rocName = new URLSearchParams(window.location.search).get('roc')
+    const dtcName = new URLSearchParams(window.location.search).get('dtc')
+    const dtcLink = new URLSearchParams(window.location.search).get('link')
+    if(rocName) {
+        const div = document.querySelector("div[id=\"mu2e_roc\"]>div")
+        if(div) div.textContent = "ROC - "+rocName
+    }
+    if((dtcName) && (dtcLink)) {
+        const div_dtc = document.querySelector("#dtc")
+        if(div_dtc) div_dtc.textContent = dtcName+":"+dtcLink
+    }
+
+    document.querySelectorAll("div[name='mu2e_dcs']").forEach(div => {
+        div.setAttribute("data", DCS_PREFIX+":"+rocName+":"+div.getAttribute("data"))
+    });
+    _rocName = rocName;
+}
+
+function loadFEB() {
+    //const febName = new URLSearchParams(window.location.search).get('feb')
+    const rocName = new URLSearchParams(window.location.search).get('roc')
+    const rocPort = new URLSearchParams(window.location.search).get('port')
+    //const dtcName = new URLSearchParams(window.location.search).get('dtc')
+    if(rocName) {
+        const div = document.querySelector("div[id=\"mu2e_feb\"]>div")
+        if(div) div.textContent = "FEB - "+rocName+" - port "+rocPort
+    }
+    document.querySelectorAll("div[name='mu2e_dcs']").forEach(div => {
+        div.setAttribute("data", DCS_PREFIX+":"+rocName+":FEB_p"+rocPort+"_"+div.getAttribute("data"))
+    });
+}
+
 function setStatusColor(el, className) {
     el.classList.remove("mu2e_bad")
+    el.classList.remove("mu2e_bad_text")
     el.classList.remove("mu2e_ok")
     el.classList.remove("mu2e_warning")
     el.classList.remove("mu2e_transition")
@@ -397,11 +601,129 @@ async function fetchData() {
     // send all enabled fetch requests
     if(getAppStatusEnabled) handleAppStatus();
     if(getCurrentStateEnabled) handleCurrentState();
+    if(mu2e_dcs_channels.length > 0) handleEPICS();
+    if(getAlarmChecksEnabled) handleAlarms();
+    if(getSystemMessagesEnabled) handleMessages();
     //if(getAliasListEnabled) handleAliasList();
+}
+
+async function updateHardware() {
+    let res = await getHardwareTree();
+
+    // update navigation always when present
+    let nav = document.querySelector("div[id='mu2e_nav']")
+    if(nav) {
+        let div_dtc = document.createElement("div")
+        let div_roc = document.createElement("div")
+        let span_title = document.createElement("span")
+        span_title.innerHTML = "Hardware"
+        div_dtc.appendChild(span_title)
+        Object.keys(res).forEach(contextName => {
+            Object.keys(res[contextName]).forEach(dtcName => {
+                Object.keys(res[contextName][dtcName]["rocs"]).forEach(rocName => { 
+                    console.log(res[contextName][dtcName]["rocs"][rocName])
+                    const link = res[contextName][dtcName]["rocs"][rocName]["linkId"]
+                    let a_roc = document.createElement("a")
+                    a_roc.href = "Mu2eROC.html?roc="+rocName+"&dtc="+dtcName+"&link="+link.toString()
+                    a_roc.innerHTML = "- "+rocName
+                    a_roc.id = "ROC-"+rocName
+                    if(rocName == _rocName) {
+                        a_roc.classList.add("mu2e_nav_active")
+                    }
+                    div_roc.appendChild(a_roc)
+                });
+                let a_dtc = document.createElement("a")
+                a_dtc.href = "Mu2eDTC.html?dtc="+dtcName
+                a_dtc.innerHTML = "- "+dtcName
+                a_dtc.id = "DTC-"+dtcName
+                if(dtcName == _dtcName) {
+                    a_dtc.classList.add("mu2e_nav_active")
+                }
+                div_dtc.appendChild(a_dtc)
+            });
+        });
+        nav.appendChild(div_dtc)
+        nav.appendChild(div_roc)
+    }
+
+    // if mu2e_hardware div exists, also update that
+    let div = document.getElementById("mu2e_hardware");
+    if(div==undefined) return;
+    div.replaceChildren()
+
+    const title = document.createElement("div")
+    title.classList.add("mu2e_title")
+    title.style.cssText = "grid-column: 1/5; grid-row: 1";
+    title.textContent = "Hardware"
+    //span.appendChild(toggle)
+    //title.appendChild(span)
+    div.appendChild(title)
+
+    let row_idx = 2;
+    Object.keys(res).forEach(contextName => {
+        const context = res[contextName];
+        c_rowidx_start = row_idx;
+        Object.keys(context).forEach(dtcName => {
+            const dtc = context[dtcName]; 
+            const dtc_status = dtc["status"]
+            const dtc_id     = dtc['id']
+            d_rowidx_start = row_idx;
+            Object.keys(dtc["rocs"]).forEach(rocName => {
+                r_rowidx_start = row_idx;
+                const roc = dtc["rocs"][rocName]; 
+                let link = roc["linkId"]
+                Object.keys(roc["febs"]).forEach(febName => {
+                    let feb = roc["febs"][febName]
+                    let f = document.createElement("div")
+                    f.style.cssText = "grid-column: 4; grid-row:"+(row_idx++).toString()+";";
+                    f.classList.add("mu2e_list")
+                    if(feb['status'] != "On")
+                        f.classList.add("mu2e_disabled")
+                    let feb_a = document.createElement("a")
+                    feb_a.href = "Mu2eFEB.html?roc="+rocName+"&dtc="+dtcName+"&link="+link.toString()+"&port="+feb['port'].toString()
+                    feb_a.innerHTML = febName
+                    f.appendChild(feb_a)
+                    f.innerHTML = "port-"+feb['port'].toString() + ": " + f.innerHTML
+                    div.appendChild(f);
+                    let f2 = document.createElement("div")
+                    f2.style.cssText = "grid-column: 4; grid-row:"+(row_idx++).toString()+";";
+                    f2.classList.add("mu2e_list")
+                    //if(feb['status'] != "On")
+                    f2.classList.add("mu2e_disabled")
+                    f2.innerHTML = "port-"+feb['port'].toString() + ": " + febName + " TEST"
+                    div.appendChild(f2);
+                });
+                let r = document.createElement("div")
+                r.style.cssText = "grid-column: 3; grid-row:"+(r_rowidx_start).toString()+"/"+(row_idx).toString()+";";
+                r.classList.add("mu2e_list")
+                let a = document.createElement("a")
+                a.href = "Mu2eROC.html?roc="+rocName+"&dtc="+dtcName+"&link="+link.toString()
+                a.innerHTML = rocName
+                r.appendChild(a)
+                r.innerHTML = "link-"+roc["linkId"]+": " + r.innerHTML
+                div.appendChild(r);
+            });
+            let d = document.createElement("div")
+            d.style.cssText = "grid-column: 2; grid-row:"+(d_rowidx_start).toString()+"/"+(row_idx).toString()+";";
+            d.classList.add("mu2e_list")
+            let a = document.createElement("a")
+            a.href = "Mu2eDTC.html?dtc="+dtcName
+            a.innerHTML = dtcName
+            d.appendChild(a)
+            d.innerHTML += " (id: "+dtc["id"]+")"
+            div.appendChild(d);
+        });
+        let c = document.createElement("div")
+        c.style.cssText = "grid-column: 1; grid-row:"+(c_rowidx_start).toString()+"/"+(row_idx).toString()+";";
+        c.classList.add("mu2e_list")
+        c.innerHTML = contextName
+        div.appendChild(c);
+    });
 }
 
 async function updateAppStatus(includeApps=false) {
     let div = document.getElementById("mu2e_apps");
+    if(div==undefined) return;
     div.replaceChildren()
     
     const title = document.createElement("div")
@@ -586,7 +908,6 @@ async function handleAppStatus() {
                 let oldButton = div.querySelector('button')
                 let button = document.createElement("button")
                 let updated = false;
-                console.log(status[0])
                 switch(status[0]) {
                     case "Configured":
                         if(oldButton == null || oldButton.innerHTML !== "Start") {
@@ -603,6 +924,12 @@ async function handleAppStatus() {
                             button.disabled = false;
                             updated = true;
                         }
+                        // add link to reconfigure
+                        let state = document.querySelector("#state");
+                        if(state) {
+                            state.innerHTML += 
+                            "<span class=\"mu2e_right_float\"><a href=\"#\" style=\"text-decoration:none;\" alt=\"Reconfigure\" onClick='transition(\"Halt\")'>&#x21bb</a></span>";
+                        }
                         break;
                     case "Halted":
                         if(oldButton == null || oldButton.innerHTML !== "Configure") {
@@ -617,7 +944,7 @@ async function handleAppStatus() {
                         if(oldButton == null || oldButton.innerHTML !== "Stop") {
                             button = button.cloneNode(false);
                             button.innerHTML = "Stop"
-                            button.addEventListener("click", function (e) {transition('Configure');});
+                            button.addEventListener("click", function (e) {transition('Stop');});
                             button.disabled = false;
                             updated = true;
                         }
@@ -680,6 +1007,249 @@ async function handleCurrentState() {
     });
 }
 
+function addNav() {
+    let nav = document.querySelector("div[id='mu2e_nav']")
+    let overview = document.createElement("a")
+    overview.href="Mu2eIndex.html"
+    overview.innerHTML = "Overview"
+    overview.id = "Index"
+    let alarms = document.createElement("a")
+    alarms.href="Mu2eAlarms.html"
+    alarms.innerHTML = "Alarms"
+    alarms.id = "Alarms"
+    let message = document.createElement("a")
+    message.href="Mu2eMessages.html"
+    message.innerHTML = "Messages"
+    message.id = "Messages"
+    if(nav) {
+        nav.appendChild(overview)
+        nav.appendChild(alarms)
+        nav.appendChild(message)
+
+        nav.appendChild(document.createElement("br"))
+    }
+}
+
+function updateNav(active) {
+    let nav_active = document.querySelector("div[id='mu2e_nav'] a[id='"+active+"']")
+    if(nav_active) nav_active.classList.add("mu2e_nav_active")
+}
+
+// uses global mu2e_dcs_channels
+async function handleEPICS() {
+    let res = await getPvData(mu2e_dcs_channels);
+    if(res == undefined) return;
+    Object.entries(res).forEach(([pvName, pv]) => {
+        document.querySelectorAll('div[data="'+pvName+'"]').forEach(div => {
+            let value = pv["Value"];
+            if(format = div.getAttribute("format")) {
+                if(!isNaN(Number(format))) // number of digis
+                    value = Number(value).toFixed(format)
+                else if(format == "hex") {
+                    value = "0x" + Number(value).toString(16)
+                }
+                
+            }
+            //if(title = div.getAttribute("title"))
+            //    value = title+": "+value
+            if(units = div.getAttribute("units"))
+                value += " "+units
+            div.textContent = value;
+            if((pv["Severity"] == "MINOR")) {
+                setStatusColor(div,"mu2e_warning");
+            } else if((pv["Severity"] == "MAJOR")) {
+                setStatusColor(div,"mu2e_bad");
+            } else {
+                setStatusColor(div,"");
+            }
+
+            const time = new Date(Number(pv["Timestamp"])*1000);
+            const dtime = Math.floor(Date.now() / 1000) - Number(pv["Timestamp"])
+
+            addTime(div, time, dtime)
+
+            // handle bitfields
+            if(bitfield_group = div.getAttribute("bitfield")) {
+                document.querySelectorAll('div[name="'+bitfield_group+'"]').forEach(div_ => {
+                    const bit = div_.getAttribute("bit")
+                    if(bit) {
+                        let span = div_.querySelector("span")
+                        if(span == undefined) {
+                            span = document.createElement("span")
+                            div_.appendChild(span)
+                        }
+                        console.log()
+                        span.innerHTML = (parseInt(pv["Value"]) & (1<<bit)) !== 0 ? "[x]" : "[   ]";
+                    }
+
+                });
+            }
+            // handle callback functions
+            if(callback = div.getAttribute("callback")) {
+                window[callback](div);
+            }
+        });
+    });
+}
+
+async function updateAlarms() {
+    let div = document.querySelector("div[id='mu2e_alarms']")
+    if(div == undefined) return;
+    let res = await getAlarmChecks();
+ 
+    let rowindex_start = 3;
+    let rowidx = rowindex_start;
+    let channels_ = []; // store all channels to load settings afterwards
+    res["alarms"].forEach(alarm => {
+        let name = document.createElement("div")
+        name.style.cssText = "grid-column: 1; grid-row: "+rowidx.toString();
+        name.classList.add("mu2e_list")
+        name.innerHTML = alarm["name"].substring(14)
+        let val = document.createElement("div")
+        val.style.cssText = "grid-column: 2; grid-row: "+rowidx.toString();
+        val.classList.add("mu2e_list")
+        val.setAttribute("name", "mu2e_dcs")
+        val.setAttribute("data", alarm["name"])
+        val.setAttribute("format", "2")
+        div.appendChild(name)
+        div.appendChild(val)
+
+        channels_.push(alarm["name"])
+        rowidx++;
+    });
+    loadDcsChannels();
+
+    let settings = await getPVSettings(channels_);
+    rowidx = rowindex_start;
+    res["alarms"].forEach(alarm => { // secnd loop too load settings
+        let alarmName = alarm["name"]
+        let hi = document.createElement("div")
+        hi.style.cssText = "grid-column: 5; grid-row: "+rowidx.toString();
+        hi.classList.add("mu2e_list")
+        hi.innerHTML = Number(settings[alarmName]["Upper_Warning_Limit"]).toFixed(2)
+        div.appendChild(hi)
+        let hihi = document.createElement("div")
+        hihi.style.cssText = "grid-column: 6; grid-row: "+rowidx.toString();
+        hihi.classList.add("mu2e_list")
+        hihi.innerHTML = Number(settings[alarmName]["Upper_Alarm_Limit"]).toFixed(2)
+        div.appendChild(hihi)
+        let lo = document.createElement("div")
+        lo.style.cssText = "grid-column: 4; grid-row: "+rowidx.toString();
+        lo.classList.add("mu2e_list")
+        lo.innerHTML = Number(settings[alarmName]["Lower_Warning_Limit"]).toFixed(2)
+        div.appendChild(lo)
+        let lolo = document.createElement("div")
+        lolo.style.cssText = "grid-column: 3; grid-row: "+rowidx.toString();
+        lolo.classList.add("mu2e_list")
+        lolo.innerHTML = Number(settings[alarmName]["Lower_Alarm_Limit"]).toFixed(2)
+        div.appendChild(lolo)
+        rowidx++;
+    });
+}
+
+function addMsg(time, msg) {
+    let row = document.createElement("div")
+    row.classList.add("mu2e_grid")
+    row.style.padding = "2px";
+    row.setAttribute("name","msg_row")
+    //row.classList.add("mu2e_container")
+    let row_time = document.createElement("div")
+    row_time.classList.add("mu2e_list")
+    row_time.style.cssText = "grid-column: 1; grid-row: 1";
+    row_time.innerHTML = time.toLocaleTimeString(['en-GB'], {hour: '2-digit', minute: '2-digit', second: '2-digit' })+"&nbsp;"
+    row.appendChild(row_time)
+    let row_msg = document.createElement("div")
+    row_msg.classList.add("mu2e_list")
+    row_msg.style.cssText = "grid-column: 2/6; grid-row: 1";
+    row_msg.setAttribute("name","msg_msg")
+    //row_msg.appendChild(row_time)
+    row_msg.innerHTML += msg
+    //addTime(row_msg, time)
+    row.appendChild(row_msg)
+    return row;
+}
+
+async function updateMessages() {
+    let div = document.querySelector("div[id='mu2e_messages']")
+    let div_last = document.querySelector("div[id='mu2e_last_message']")
+    if((div == undefined) && (div_last == undefined)) return;
+    let res = await getSystemMessages(history=true);
+    for(let i = res["systemMessages"].length-1; i >=0; i-- ) {
+        const msg = res["systemMessages"][i];
+    //res["systemMessages"].forEach(msg => {
+        let time = new Date(Number(msg["time"])*1000);
+        const row = addMsg(time, msg["message"]);
+        if(div) div.appendChild(row)
+        if((i == res["systemMessages"].length-1) && (div_last)) {
+            div_last.innerHTML = ""
+            div_last.appendChild(row)
+        }
+    //});
+    }
+
+}
+async function handleMessages() {
+    let res = await getSystemMessages();
+    if(res["systemMessages"]) {
+        res["systemMessages"].forEach(msg => {
+            let time = new Date(Number(msg["time"])*1000);
+            const row = addMsg(time, msg["message"]);
+            setStatusColor(row, "mu2e_warning");
+            let div = document.querySelector("div[id='mu2e_messages']")
+            if(div) { 
+                let div_first = div.querySelector("div[name='msg_row']>div[name='msg_msg']")
+                if(div_first == undefined || (div_first.innerHTML != msg["message"])) {
+                    //div.appendChild(row);
+                    div.insertBefore(row, div.children[1]);
+                } else if(div_first) {
+                    let div_row = div.querySelector("div[name='msg_row']")
+                    setStatusColor(div_row, "")
+                }
+            }
+            let div_last = document.querySelector("div[id='mu2e_last_message']")
+            if(div_last) {
+                let div_first = div_last.querySelector("div[name='msg_row']>div[name='msg_msg']")
+                if(div_first == undefined || (div_first.innerHTML != msg["message"])) {
+                    div_last.innerHTML = ""
+                    div_last.appendChild(row);
+                } else {
+                    let div_row = div_last.querySelector("div[name='msg_row']")
+                    setStatusColor(div_row, "")
+                }
+            }
+        });
+    }
+}
+
+
+async function handleAlarms() {
+    let res = await getAlarmChecks();
+    const  nactive = res!=undefined ? res["nactive"] : undefined;
+    const total = res!=undefined ? res["total"] : undefined;
+    document.querySelectorAll('div[name="mu2e_alarms"]').forEach(div => {
+        let a = div.querySelector("a")
+        if(a == undefined) {
+            a = document.createElement("a")
+            a.href = "Mu2eAlarms.html"
+            div.appendChild(a)
+        }
+        if(nactive != undefined) {
+            a.innerHTML = "Alarms: " + nactive.toString()+"/"+total.toString()
+            if(nactive>0) {
+                setStatusColor(div, "mu2e_bad")
+            } else {
+                setStatusColor(div, "")
+            }
+            const time = new Date(Number(res["last_check"])*1000);
+            const dtime = Math.floor(Date.now() / 1000) - Number(res["last_check"])
+            addTime(div, time, dtime)
+        } else {
+            a.innerHTML = "Alarms: Off"
+            setStatusColor(div, "mu2e_warning")
+        }
+    });
+}
+
 var aliasList = [];
 async function updateAliasList() {
     let res = await getAliasList();
@@ -708,4 +1278,3 @@ function addMessage(msg) {
     newSpan.innerHTML = msg
     message.appendChild(newSpan);
 }
-

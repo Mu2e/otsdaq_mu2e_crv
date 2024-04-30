@@ -34,11 +34,17 @@
     display: block;
     padding: 3px 5px 1px 5px;
     width:100%;
+    text-decoration: none;
+    color:rgb(51, 51, 51);
 }
 
 #mu2e_nav a:hover {
     width:100%;
-    background-color: gray;
+    background-color: lightgray;
+}
+
+.mu2e_nav_active {
+    background-color: rgb(151, 151, 151);
 }
 
 #mu2e_main {
@@ -57,6 +63,12 @@
     margin-bottom:10px;
 }
 
+.mu2e_grid {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
 #mu2e_status {
     display: grid;
     grid-gap: 3px;
@@ -67,6 +79,16 @@
     display: grid;
     grid-gap: 3px;
     color: #444;
+}
+
+#mu2e_hardware {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
+.mu2e_dcs_timestamp {
+    color:#0000004e;
 }
 
 //.mu2e_container>div{
@@ -99,6 +121,7 @@
     background-color:rgb(232, 232, 232);
     border-radius: 5px;
 }
+
 .mu2e_list {
     //border: 1px solid black;
     background-color:rgb(232, 232, 232);
@@ -107,9 +130,22 @@
     padding-left:4px;
 }
 
+.mu2e_data a {
+    text-decoration:none;
+}
+
+.mu2e_list a {
+    text-decoration:none;
+}
+
 .mu2e_right_float {
     float:right;
     padding-right:4px;
+}
+
+.mu2e_disabled {
+    color:#0000004e;
+    //background-color:#ffeb3b;
 }
 
 .mu2e_title {
@@ -157,6 +193,9 @@ div:hover>.tooltiptext {
 .mu2e_bad {
     background-color:#f44336;
     color:white;
+}
+.mu2e_bad_text {
+    color:#f44336;
 }
 
 .mu2e_ok {

@@ -22,6 +22,7 @@
     <li><a href="#" onclick="log(getAliasList()); ">getAliasList</a></li>
     <li><a href="#" onclick="log(getContextMemberNames()); ">getContextMemberNames</a></li>
     <li><a href="#" onclick="log(getSystemMessages()); ">getSystemMessages</a></li>
+    <li><a href="#" onclick="log(getSystemMessages(true)); ">getSystemMessages(history=true)</a></li>
     <li><a href="#" onclick="log(getStateMachine()); ">getStateMachine</a></li>
     <li><a href="#" onclick="log(transition('Configure'));">transition("Configure")</a></li>
     <li><a href="#" onclick="log(getStateMachineNames()); ">getStateMachineNames</a></li>
@@ -37,6 +38,15 @@
     <li><a href="#" onclick="log(getPvData(pvlist=['Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos','Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg','aba']));">getPvData</a></li>
     <li><a href="#" onclick="log(getTreeView());">getTreeView</a></li>
     <li><a href="#" onclick="log(getHardwareTree());">getHardwareTree</a></li>
+    <li><a href="#" onclick="log(dtcRead('0x9030'));">dtcRead</a></li>
+    <li><a href="#" onclick="log(dtcWrite('0x9030','0x1234'));">dtcWrite</a></li>
+    <li><a href="#" onclick="log(rocRead('0x35'));">rocRead</a></li>
+    <li><a href="#" onclick="log(rocWrite('0x35','0x1234'));">rocWrite</a></li>
+    <li><a href="#" onclick="log(febReset());">febReset</a></li>
+    <li><a href="#" onclick="log(febPwrPort());">febPwrPort</a></li>
+    <li><a href="#" onclick="log(getRunInfo());">getRunInfo()</a></li>
+    <li><a href="#" onclick="log(getRunInfo(105504));">getRunInfo(105504)</a></li>
+    <li><a href="#" onclick="log(getRunInfo(-10));">getRunInfo(-10)</a></li>
 
 
     </ul>
