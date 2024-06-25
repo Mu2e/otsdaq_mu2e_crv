@@ -39,7 +39,7 @@ public:
 
 
 	// specific ROC functions
-	virtual int  							readTimestamp			(void) ;
+	virtual int  							readInjectedPulseTimestamp			(void) override;
 	virtual void 							writeDelay				(uint16_t delay) override;  // 5ns steps
 	virtual int  							readDelay				(void) override;            // 5ns steps
 
