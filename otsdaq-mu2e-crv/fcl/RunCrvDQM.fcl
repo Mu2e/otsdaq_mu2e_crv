@@ -42,31 +42,56 @@ physics : {
       saveCanvasesToPdf: true
       showSameFpgaTimingInCanvas: false
 
-      # Histogram segmentation: which histograms get last-N-events copies.
-      # Read at configure time, so this can change between runs with no
-      # rebuild. `liveName` keeps the names the GUI already subscribes to,
-      # and `persist*: false` keeps the job-local copies out of the file.
-      # Every field, and two more presets, are in
+      # Histogram segmentation AND online publishing, both read at configure
+      # time, so either can change between runs with no rebuild.
+      #
+      #   modes/window/subrun  which copies of a histogram exist
+      #   liveName             the name the GUI subscribes to for the live copy
+      #   publish              hand this histogram's copies to HistoSender
+      #   group                collect them under one folder; omit for one
+      #                        entry per copy, keyed on the copy's own name
+      #
+      # The module no longer holds a list of what to ship -- it just wraps
+      # whatever `publish` selected in the otsdaq crv/...:replace convention.
+      # Every field, and three presets, are in
       # otsdaq-mu2e-crv/fcl/CrvDQM_segmentation_examples.fcl; the grammar is
       # in Offline/DQMHelpers/README.md.
       segmentation : {
         rules : [
+          # Shipped under their own names, so the GUI keeps subscribing to the
+          # names it already knows -- including the rolling copy, via liveName.
           { match    : "h1_channels"
             modes    : [ "job", "window" ]
             window   : { span : 50000  unit : "ewt"  subdivisions : 10
                          keep : 4  persist : false  persistLive : false }
             liveName : "h1_channelsLastEwt"
+            publish  : true
           },
+
+          { match : "h2_channels"    modes : [ "job" ]  publish : true },
+          { match : "h1_digisPerEvt" modes : [ "job" ]  publish : true },
+          { match : "h1_peakAdc"     modes : [ "job" ]  publish : true },
+          { match : "h1_tdc"         modes : [ "job" ]  publish : true },
+
+          # Collected under one label, as the timing summary always has been.
+          { match : "dtVsFeb"  modes : [ "job" ]  publish : true  group : "timing_feb" },
 
           { match    : "dtOutOfRangePerFeb"
             modes    : [ "job", "window" ]
             window   : { span : 50000  unit : "ewt"  subdivisions : 10
                          keep : 4  persist : false  persistLive : false }
             liveName : "dtOutOfRangePerFebLastEwt"
+            publish  : true
+            group    : "timing_feb"
           },
 
-          # Thousands of these; a window rule would clone every one ten times.
-          { match : "timing_fpga/*"  modes : [ "job" ] }
+          # Thousands of these: one group, and never a window rule.
+          { match : "timing_fpga/*"  modes : [ "job" ]  publish : true  group : "timing_fpga" }
+
+          # Anything not named above is booked job-only and not shipped. That
+          # is deliberate: crvDigiRates* and crvDigisPerChannel are large and
+          # are not on the display, so publishing them would cost bandwidth
+          # for nothing. Add `publish : true` here to change that -- no rebuild.
         ]
       }
     }

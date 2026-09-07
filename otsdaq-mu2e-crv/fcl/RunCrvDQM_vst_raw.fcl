@@ -48,30 +48,50 @@ physics : {
       saveCanvasesToPdf: false
       showSameFpgaTimingInCanvas: false
 
-      # Histogram segmentation. This is the file-mode dry run, so unlike the
-      # live RunCrvDQM.fcl it sets persist/persistLive TRUE -- writing the
-      # copies to the output file is the only way to inspect them offline.
-      # The span is short for the same reason: a few thousand events have to
-      # be enough to see the ring rotate. Live online uses 50000 EWT and
-      # writes nothing; see CrvDQM_segmentation_examples.fcl.
+      # Histogram segmentation AND online publishing. This is the file-mode
+      # dry run, so unlike the live RunCrvDQM.fcl it sets persist/persistLive
+      # TRUE -- writing the copies to the output file is the only way to
+      # inspect them offline -- and uses a short span so a few thousand events
+      # are enough to see the ring rotate. `publish`/`group` are unchanged from
+      # the live config: they decide what HistoSender ships and under which
+      # folder, so the module holds no list of its own.
+      # See CrvDQM_segmentation_examples.fcl and Offline/DQMHelpers/README.md.
       segmentation : {
         rules : [
+          # Shipped under their own names, so the GUI keeps subscribing to the
+          # names it already knows -- including the rolling copy, via liveName.
           { match    : "h1_channels"
             modes    : [ "job", "window" ]
             window   : { span : 2000  unit : "ewt"  subdivisions : 10
-                         keep : 3  persist : true  persistLive : true }
+                         keep : 3  persist : true   persistLive : true }
             liveName : "h1_channelsLastEwt"
+            publish  : true
           },
+
+          { match : "h2_channels"    modes : [ "job" ]  publish : true },
+          { match : "h1_digisPerEvt" modes : [ "job" ]  publish : true },
+          { match : "h1_peakAdc"     modes : [ "job" ]  publish : true },
+          { match : "h1_tdc"         modes : [ "job" ]  publish : true },
+
+          # Collected under one label, as the timing summary always has been.
+          { match : "dtVsFeb"  modes : [ "job" ]  publish : true  group : "timing_feb" },
 
           { match    : "dtOutOfRangePerFeb"
             modes    : [ "job", "window" ]
             window   : { span : 2000  unit : "ewt"  subdivisions : 10
-                         keep : 3  persist : true  persistLive : true }
+                         keep : 3  persist : true   persistLive : true }
             liveName : "dtOutOfRangePerFebLastEwt"
+            publish  : true
+            group    : "timing_feb"
           },
 
-          # Thousands of these; a window rule would clone every one ten times.
-          { match : "timing_fpga/*"  modes : [ "job" ] }
+          # Thousands of these: one group, and never a window rule.
+          { match : "timing_fpga/*"  modes : [ "job" ]  publish : true  group : "timing_fpga" }
+
+          # Anything not named above is booked job-only and not shipped. That
+          # is deliberate: crvDigiRates* and crvDigisPerChannel are large and
+          # are not on the display, so publishing them would cost bandwidth
+          # for nothing. Add `publish : true` here to change that -- no rebuild.
         ]
       }
     }
