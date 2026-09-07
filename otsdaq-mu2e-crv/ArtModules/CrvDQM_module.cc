@@ -24,6 +24,7 @@
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Principal/Handle.h"
 #include "art/Framework/Principal/Run.h"
+#include "art/Framework/Principal/SubRun.h"
 
 // art/root includes
 #include "art_root_io/TFileDirectory.h"
@@ -50,11 +51,19 @@
 
 // Offline includes
 #include "Offline/DQMHelpers/inc/CRVDigiDQM.hh"
+#include "Offline/DQMHelpers/inc/DQMSegmentationConfig.hh"
 #include "Offline/RecoDataProducts/inc/CrvDigi.hh"
 #include "Offline/RecoDataProducts/inc/CrvStatus.hh"
 
 // Custom styling
 #include "otsdaq-mu2e-crv/ArtModules/CrvDQMStyle.hh"
+
+namespace
+{
+// The segmentation registry hands back TH1*; every histogram this module
+// touches by name was booked as a TH1F.
+TH1F* asTH1F(TH1* h) { return dynamic_cast<TH1F*>(h); }
+}  // namespace
 
 namespace ots
 {
@@ -73,6 +82,8 @@ class CrvDQM : public art::EDAnalyzer
 	// Standard art methods
 	void analyze(art::Event const& event) override;
 	void beginJob() override;
+	void beginSubRun(art::SubRun const& subRun) override;
+	void endSubRun(art::SubRun const& subRun) override;
 	void endJob() override;
 
 	/// Module methods
@@ -159,6 +170,11 @@ mu2e::CRVDigiDQM::Config CrvDQM::makeHelperConfig(fhicl::ParameterSet const& ps)
 	c.fillInclusive      = false;
 	c.fillCrvIdRates     = ps.get<bool>("fillCrvIdRates", true);
 	c.kppReadout         = ps.get<bool>("kppReadout", true);
+	c.fillLivePlots      = ps.get<bool>("fillLivePlots", true);
+	// Which histograms get per-subrun / last-N-events copies. Parsed by the
+	// same code the offline analyzers use, so the grammar cannot drift.
+	c.segmentation =
+	    mu2e::parseSegmentation(ps.get<fhicl::ParameterSet>("segmentation", {}));
 	return c;
 }
 
@@ -200,6 +216,14 @@ CrvDQM::~CrvDQM()
 {
 	// Nothing to clean up
 }
+
+void CrvDQM::beginSubRun(art::SubRun const& subRun)
+{
+	dqm_.BeginSubRun(static_cast<int>(subRun.run()),
+	                 static_cast<int>(subRun.subRun()));
+}
+
+void CrvDQM::endSubRun(art::SubRun const&) { dqm_.EndSubRun(); }
 
 void CrvDQM::beginJob()
 {
@@ -284,6 +308,10 @@ void CrvDQM::Send()
 		return;
 	}
 
+	// The live segment copies are labelled with the range they hold; refresh
+	// that before shipping, so a title read on the GUI is never behind.
+	dqm_.segments().RefreshLabels();
+
 	// Use the map method (three methods in HistoSender.cc)
 	std::map<std::string, std::vector<TH1*>> hists;
 	if(dummyHist_)
@@ -292,22 +320,26 @@ void CrvDQM::Send()
 	}
 	else
 	{
-		hists["crv/h1_channels:replace"]        = {dqm_.h1_channels()};
-		hists["crv/h1_channelsLastEwt:replace"] = {dqm_.h1_channelsLastEwt()};
-		hists["crv/h2_channels:replace"]        = {dqm_.h2_channels()};
-		hists["crv/h1_digisPerEvt:replace"]     = {dqm_.h1_digisPerEvt()};
-		hists["crv/h1_peakAdc:replace"]         = {dqm_.h1_peakAdc()};
-		hists["crv/h1_tdc:replace"]             = {dqm_.h1_tdc()};
+		// One entry per configured copy, keyed on the histogram's own name, so
+		// the job copies keep the keys the GUI already knows and a newly
+		// configured segment reaches it without a change here.
+		for(const char* name : {"h1_channels",
+		                        "h2_channels",
+		                        "h1_digisPerEvt",
+		                        "h1_peakAdc",
+		                        "h1_tdc"})
+		{
+			for(TH1* h : dqm_.segments().copies(name))
+			{
+				hists[std::string("crv/") + h->GetName() + ":replace"] = {h};
+			}
+		}
 
 		if(TH2F* h = dqm_.dtVsFeb())
 		{
 			hists["crv/timing_feb:replace"].push_back(h);
 		}
-		if(TH1F* h = dqm_.dtOutOfRangePerFeb())
-		{
-			hists["crv/timing_feb:replace"].push_back(h);
-		}
-		if(TH1F* h = dqm_.dtOutOfRangePerFebLastEwt())
+		for(TH1* h : dqm_.segments().copies("dtOutOfRangePerFeb"))
 		{
 			hists["crv/timing_feb:replace"].push_back(h);
 		}
@@ -475,7 +507,11 @@ void CrvDQM::startHttpServer()
 		httpServer_->Register("/", dqm_.h1_peakAdc());
 		httpServer_->Register("/", dqm_.h1_tdc());
 		httpServer_->Register("/", dqm_.h1_channels());
-		httpServer_->Register("/", dqm_.h1_channelsLastEwt());
+		// Only present when a window rule is configured for it.
+		if(TH1F* h = asTH1F(dqm_.segments().live("h1_channels")))
+		{
+			httpServer_->Register("/", h);
+		}
 		httpServer_->Register("/", dqm_.h2_channels());
 		httpServer_->Register("/", dqm_.g_digisVsEwt());
 		httpServer_->Register("/", dqm_.g_digisAvgVsEwt());
@@ -529,6 +565,10 @@ void CrvDQM::updateWebDisplay(bool force)
 		return;
 	}
 
+	// The live segment copies carry the range they hold in their titles, and
+	// the canvas draws those titles; bring them up to date before redrawing.
+	dqm_.segments().RefreshLabels();
+
 	++statUpdate_;
 
 	if(dummyHist_ && h1_dummy_)
@@ -540,7 +580,7 @@ void CrvDQM::updateWebDisplay(bool force)
 	{
 		TH1F* h1_digisPerEvt     = dqm_.h1_digisPerEvt();
 		TH1F* h1_channels        = dqm_.h1_channels();
-		TH1F* h1_channelsLastEwt = dqm_.h1_channelsLastEwt();
+		TH1F* h1_channelsLastEwt = asTH1F(dqm_.segments().live("h1_channels"));
 		if(h1_digisPerEvt)
 		{
 			double maxContent =
@@ -573,7 +613,7 @@ void CrvDQM::updateWebDisplay(bool force)
 		TH1F*   h1_peakAdc         = dqm_.h1_peakAdc();
 		TH1F*   h1_tdc             = dqm_.h1_tdc();
 		TH1F*   h1_channels        = dqm_.h1_channels();
-		TH1F*   h1_channelsLastEwt = dqm_.h1_channelsLastEwt();
+		TH1F*   h1_channelsLastEwt = asTH1F(dqm_.segments().live("h1_channels"));
 		TH2F*   h2_channels        = dqm_.h2_channels();
 		TGraph* g_digisVsEwt       = dqm_.g_digisVsEwt();
 		TGraph* g_digisAvgVsEwt    = dqm_.g_digisAvgVsEwt();

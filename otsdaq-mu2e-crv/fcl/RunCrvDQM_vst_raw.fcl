@@ -1,5 +1,11 @@
+# File-based dry run of the TDAQ CrvDQM module on VST-stream raw .art.
+# Decode with CrvDigisFromArtdaqFragmentsFEBII, then CrvDQM.
+# Does not talk to hardware, otsdaq VisualSupervisor, or HistoSender.
+#
+# Drive with tdaq_run_crv_dqm.sh (TDAQ Spack env + local Offline/otsdaq install).
+# Do not run this with muse `mu2e`.
+
 #include "Offline/fcl/standardServices.fcl"
-#include "Offline/CRVResponse/fcl/prolog.fcl"
 
 process_name : CrvDQM
 
@@ -39,29 +45,28 @@ physics : {
       dtBinSize        : 0.5
       dtRange          : 50.0
       minAmplitude     : 10
-      saveCanvasesToPdf: true
+      saveCanvasesToPdf: false
       showSameFpgaTimingInCanvas: false
 
-      # Histogram segmentation: which histograms get last-N-events copies.
-      # Read at configure time, so this can change between runs with no
-      # rebuild. `liveName` keeps the names the GUI already subscribes to,
-      # and `persist*: false` keeps the job-local copies out of the file.
-      # Every field, and two more presets, are in
-      # otsdaq-mu2e-crv/fcl/CrvDQM_segmentation_examples.fcl; the grammar is
-      # in Offline/DQMHelpers/README.md.
+      # Histogram segmentation. This is the file-mode dry run, so unlike the
+      # live RunCrvDQM.fcl it sets persist/persistLive TRUE -- writing the
+      # copies to the output file is the only way to inspect them offline.
+      # The span is short for the same reason: a few thousand events have to
+      # be enough to see the ring rotate. Live online uses 50000 EWT and
+      # writes nothing; see CrvDQM_segmentation_examples.fcl.
       segmentation : {
         rules : [
           { match    : "h1_channels"
             modes    : [ "job", "window" ]
-            window   : { span : 50000  unit : "ewt"  subdivisions : 10
-                         keep : 4  persist : false  persistLive : false }
+            window   : { span : 2000  unit : "ewt"  subdivisions : 10
+                         keep : 3  persist : true  persistLive : true }
             liveName : "h1_channelsLastEwt"
           },
 
           { match    : "dtOutOfRangePerFeb"
             modes    : [ "job", "window" ]
-            window   : { span : 50000  unit : "ewt"  subdivisions : 10
-                         keep : 4  persist : false  persistLive : false }
+            window   : { span : 2000  unit : "ewt"  subdivisions : 10
+                         keep : 3  persist : true  persistLive : true }
             liveName : "dtOutOfRangePerFebLastEwt"
           },
 
@@ -81,3 +86,16 @@ services.TimeTracker.printSummary: true
 services.scheduler.wantSummary: true
 services.message.destinations.log.outputStatistics : false
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_common_extracted.txt"
+
+# Same VST 124155 conditions as unpack_data_vst.fcl (no CRV IOV in the DB).
+services.ProditionsService.crvStatus.useDb : true
+services.ProditionsService.crvCalib.useDb  : true
+services.DbService.purpose : Sim_best
+services.DbService.version : v1_5
+services.DbService.textFile : [
+  "Offline/CRVConditions/data/status_extracted_20260630.txt",
+  "Offline/CRVConditions/data/calib_extracted_20260630.txt",
+  "Offline/TrackerConditions/data/TrkPanelMap.txt"
+]
+services.DbService.verbose : 0
+services.ProditionsService.trackerPanelMap.useDb : true

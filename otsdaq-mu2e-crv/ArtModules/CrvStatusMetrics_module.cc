@@ -39,6 +39,7 @@
 #include "otsdaq-mu2e/ArtModules/HistoSender.hh"
 
 #include "Offline/DQMHelpers/inc/CRVStatusDQM.hh"
+#include "Offline/DQMHelpers/inc/DQMSegmentationConfig.hh"
 #include "Offline/RecoDataProducts/inc/CrvDAQerror.hh"
 #include "Offline/RecoDataProducts/inc/CrvStatus.hh"
 
@@ -58,6 +59,7 @@ class CrvStatusMetrics : public art::EDAnalyzer
 
 	void beginJob() override;
 	void analyze(art::Event const& e) override;
+	void beginSubRun(art::SubRun const& sr) override;
 	void endSubRun(art::SubRun const& sr) override;
 	void endJob() override;
 
@@ -103,6 +105,11 @@ mu2e::CRVStatusDQM::Config CrvStatusMetrics::makeHelperConfig(
 	c.maxWordCount      = ps.get<float>("maxWordCount", 65535.f);
 	c.nBinsEwtMismatch  = ps.get<int>("nBinsEwtMismatch", 201);
 	c.maxEwtMismatch    = ps.get<float>("maxEwtMismatch", 100.f);
+	c.fillLivePlots     = ps.get<bool>("fillLivePlots", true);
+	// Which histograms get per-subrun / last-N-events copies. Parsed by the
+	// same code the offline analyzers use, so the grammar cannot drift.
+	c.segmentation =
+	    mu2e::parseSegmentation(ps.get<fhicl::ParameterSet>("segmentation", {}));
 	return c;
 }
 
@@ -392,6 +399,10 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 
 void CrvStatusMetrics::Send()
 {
+	// The live segment copies are labelled with the range they hold; refresh
+	// that before shipping, so a title read on the GUI is never behind.
+	dqm_.segments().RefreshLabels();
+
 	if(!sendHists_ || histoSender_ == nullptr)
 		return;
 	if(!dqm_.booked())
@@ -435,6 +446,11 @@ void CrvStatusMetrics::Send()
 		std::cout << outputPrefix_ << "Sent histograms to " << address_ << ":" << port_
 		          << std::endl;
 	}
+}
+
+void CrvStatusMetrics::beginSubRun(art::SubRun const& sr)
+{
+	dqm_.BeginSubRun(static_cast<int>(sr.run()), static_cast<int>(sr.subRun()));
 }
 
 void CrvStatusMetrics::endSubRun(art::SubRun const& sr)
